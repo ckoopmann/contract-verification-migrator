@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 clap = {version = "4.4.11", features = ["derive"]}
+console = "0.15.7"
 eyre = "0.6.11"
 foundry-block-explorers = { git = "https://github.com/foundry-rs/block-explorers.git" }
 futures = "0.3.30"

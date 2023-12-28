@@ -1,3 +1,4 @@
+use console::style;
 use eyre::eyre;
 use eyre::{Context, Result};
 use foundry_block_explorers::contract::{
@@ -9,11 +10,11 @@ use futures::FutureExt;
 use indicatif::{MultiProgress, MultiProgressAlignment, ProgressBar, ProgressStyle};
 use serde_json::json;
 use std::collections::HashMap;
-use std::time::Duration;
 use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Debug)]
-enum VerificationResult {
+pub enum VerificationResult {
     Success,
     AlreadyVerified,
 }
@@ -24,33 +25,13 @@ pub async fn copy_etherscan_verification(
     source_url: String,
     target_api_key: String,
     target_url: String,
-) -> Result<()> {
-    let mp = Arc::new(MultiProgress::new());
-    mp.set_alignment(MultiProgressAlignment::Bottom);
+    progress_bar: bool,
+) -> Vec<Result<VerificationResult>> {
+    let mp = initialize_multi_progress(progress_bar);
     let tasks: Vec<_> = contract_addresses
         .into_iter()
         .map(move |contract_address| {
-            let pb = mp.add(ProgressBar::new_spinner());
-            pb.enable_steady_tick(Duration::from_millis(120));
-            pb.set_style(
-                ProgressStyle::with_template("{spinner:.blue} {msg}")
-                    .unwrap()
-                    // For more spinners check out the cli-spinners project:
-                    // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
-                    .tick_strings(&[
-                        "▹▹▹▹▹",
-                        "▸▹▹▹▹",
-                        "▹▸▹▹▹",
-                        "▹▹▸▹▹",
-                        "▹▹▹▸▹",
-                        "▹▹▹▹▸",
-                        "▪▪▪▪▪",
-                    ]),
-            );
-            pb.set_message(format!(
-                "{:} - Copying Verification...",
-                &contract_address
-            ));
+            let pb = initialize_progress_bar(mp.clone(), &contract_address);
             copy_etherscan_verification_for_contract(
                 contract_address.clone(),
                 source_api_key.clone(),
@@ -59,26 +40,12 @@ pub async fn copy_etherscan_verification(
                 target_url.clone(),
             )
             .then(move |result| {
-                match result {
-                    Ok(VerificationResult::Success) => pb.finish_with_message(format!(
-                        "{:} - Success",
-                        contract_address
-                    )),
-                    Ok(VerificationResult::AlreadyVerified) => pb.finish_with_message(format!(
-                        "{:} - Already verified",
-                        contract_address
-                    )),
-                    Err(ref err) => pb.finish_with_message(format!(
-                        "{:} - Error: {:?}",
-                        contract_address, err
-                    )),
-                }
+                update_progress_bar(pb, contract_address, &result);
                 futures::future::ready(result)
             })
         })
         .collect();
-    futures::future::join_all(tasks).await;
-    Ok(())
+    return futures::future::join_all(tasks).await;
 }
 
 async fn copy_etherscan_verification_for_contract(
@@ -207,4 +174,70 @@ async fn await_contract_verification(
         tokio::time::sleep(interval).await;
     }
     Err(eyre!("Verification timed out"))
+}
+
+fn initialize_multi_progress(progress_bar: bool) -> Option<Arc<MultiProgress>> {
+    if progress_bar {
+        let mp = Arc::new(MultiProgress::new());
+        mp.set_alignment(MultiProgressAlignment::Bottom);
+        Some(mp)
+    } else {
+        None
+    }
+}
+
+fn initialize_progress_bar(
+    mp: Option<Arc<MultiProgress>>,
+    contract_address: &String,
+) -> Option<ProgressBar> {
+    if let Some(mp) = mp.clone() {
+        let pb = mp.add(ProgressBar::new_spinner());
+        pb.enable_steady_tick(Duration::from_millis(120));
+        pb.set_style(
+            ProgressStyle::with_template("{msg}{spinner:.yellow} ")
+                .unwrap()
+        );
+        pb.set_message(format!(
+                        "{}: {}",
+                        contract_address,
+                        style("Copying ").yellow(),
+                    ));
+        Some(pb)
+    } else {
+        None
+    }
+}
+
+fn update_progress_bar(
+    pb: Option<ProgressBar>,
+    contract_address: String,
+    result: &Result<VerificationResult>,
+) {
+    if let Some(pb) = pb {
+        let style_finished = ProgressStyle::with_template("{prefix}{msg}").unwrap();
+                pb.set_style(style_finished.clone());
+        match result {
+            Ok(VerificationResult::Success) => {
+                    pb.finish_with_message(format!(
+                        "{} - {}",
+                        contract_address,
+                        style("Success ✔").green(),
+                    ));
+            }
+            Ok(VerificationResult::AlreadyVerified) => {
+                    pb.finish_with_message(format!(
+                        "{} - {}",
+                        contract_address,
+                        style("Already Verified ✔").green(),
+                    ));
+            }
+            Err(ref err) => {
+                    pb.finish_with_message(format!(
+                        "{} - {}",
+                        contract_address,
+                        style(format!("Error: {}", err)).red(),
+                    ));
+            }
+        }
+    }
 }
