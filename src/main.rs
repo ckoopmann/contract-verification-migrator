@@ -20,7 +20,7 @@ struct Args {
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-    contract_verification_migrator::copy_etherscan_verification(
+    let results = contract_verification_migrator::copy_etherscan_verification(
         args.addresses,
         args.source_api_key,
         args.source_url,
@@ -29,4 +29,7 @@ async fn main() {
         true,
     )
     .await;
+    if results.iter().any(|result| result.is_err()) {
+        std::process::exit(1);
+    }
 }

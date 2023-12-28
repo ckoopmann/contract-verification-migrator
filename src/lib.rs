@@ -40,7 +40,7 @@ pub async fn copy_etherscan_verification(
                 target_url.clone(),
             )
             .then(move |result| {
-                update_progress_bar(pb, contract_address, &result);
+                update_progress_bar(pb, &result);
                 futures::future::ready(result)
             })
         })
@@ -194,14 +194,11 @@ fn initialize_progress_bar(
         let pb = mp.add(ProgressBar::new_spinner());
         pb.enable_steady_tick(Duration::from_millis(120));
         pb.set_style(
-            ProgressStyle::with_template("{msg}{spinner:.yellow} ")
+            ProgressStyle::with_template("{prefix}{msg}{spinner:.yellow} ")
                 .unwrap()
         );
-        pb.set_message(format!(
-                        "{}: {}",
-                        contract_address,
-                        style("Copying ").yellow(),
-                    ));
+        pb.set_prefix(format!("{} - ", contract_address));
+        pb.set_message(format!("{}", style("Copying ").yellow()));
         Some(pb)
     } else {
         None
@@ -210,31 +207,25 @@ fn initialize_progress_bar(
 
 fn update_progress_bar(
     pb: Option<ProgressBar>,
-    contract_address: String,
     result: &Result<VerificationResult>,
 ) {
     if let Some(pb) = pb {
-        let style_finished = ProgressStyle::with_template("{prefix}{msg}").unwrap();
-                pb.set_style(style_finished.clone());
         match result {
             Ok(VerificationResult::Success) => {
                     pb.finish_with_message(format!(
-                        "{} - {}",
-                        contract_address,
+                        "{}",
                         style("Success ✔").green(),
                     ));
             }
             Ok(VerificationResult::AlreadyVerified) => {
                     pb.finish_with_message(format!(
-                        "{} - {}",
-                        contract_address,
+                        "{}",
                         style("Already Verified ✔").green(),
                     ));
             }
-            Err(ref err) => {
+            Err(err) => {
                     pb.finish_with_message(format!(
-                        "{} - {}",
-                        contract_address,
+                        "{}",
                         style(format!("Error: {}", err)).red(),
                     ));
             }
