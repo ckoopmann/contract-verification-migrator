@@ -43,7 +43,7 @@ pub async fn copy_etherscan_verification_for_contract(
 }
 
 fn convert_metadata_to_verification_request(
-    contract_address: &String,
+    contract_address: &str,
     metadata: &Metadata,
 ) -> Result<VerifyContract> {
     let source = match metadata.source_code {
@@ -63,7 +63,7 @@ fn convert_metadata_to_verification_request(
                     "evm_version": metadata.evm_version,
                     "libraries": {},
                     "optimizer": {
-                        "enabled": if metadata.optimization_used == 1 { true } else { false },
+                        "enabled": metadata.optimization_used == 1,
                         "runs": metadata.runs,
                     },
                     "remappings": [],
@@ -89,7 +89,7 @@ fn convert_metadata_to_verification_request(
         source,
         other: std::collections::HashMap::new(),
     };
-    return Ok(verification_request);
+    Ok(verification_request)
 }
 
 async fn send_verification_request(
