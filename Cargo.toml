@@ -9,7 +9,9 @@ edition = "2021"
 clap = {version = "4.4.11", features = ["derive"]}
 eyre = "0.6.11"
 foundry-block-explorers = { git = "https://github.com/foundry-rs/block-explorers.git" }
+futures = "0.3.30"
 hex = "0.4.3"
+indicatif = "0.17.7"
 serde_json = "1.0.108"
 tokio ={ version = "1.35.1", features = ["full"] }
 

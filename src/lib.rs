@@ -5,8 +5,18 @@ use foundry_block_explorers::contract::{
 };
 use foundry_block_explorers::verify::{CodeFormat, VerifyContract};
 use foundry_block_explorers::Client;
+use futures::FutureExt;
+use indicatif::{MultiProgress, MultiProgressAlignment, ProgressBar, ProgressStyle};
 use serde_json::json;
 use std::collections::HashMap;
+use std::time::Duration;
+use std::sync::Arc;
+
+#[derive(Debug)]
+enum VerificationResult {
+    Success,
+    AlreadyVerified,
+}
 
 pub async fn copy_etherscan_verification(
     contract_addresses: Vec<String>,
@@ -15,6 +25,69 @@ pub async fn copy_etherscan_verification(
     target_api_key: String,
     target_url: String,
 ) -> Result<()> {
+    let mp = Arc::new(MultiProgress::new());
+    mp.set_alignment(MultiProgressAlignment::Bottom);
+    let tasks: Vec<_> = contract_addresses
+        .into_iter()
+        .map(move |contract_address| {
+            let pb = mp.add(ProgressBar::new_spinner());
+            pb.enable_steady_tick(Duration::from_millis(120));
+            pb.set_style(
+                ProgressStyle::with_template("{spinner:.blue} {msg}")
+                    .unwrap()
+                    // For more spinners check out the cli-spinners project:
+                    // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
+                    .tick_strings(&[
+                        "▹▹▹▹▹",
+                        "▸▹▹▹▹",
+                        "▹▸▹▹▹",
+                        "▹▹▸▹▹",
+                        "▹▹▹▸▹",
+                        "▹▹▹▹▸",
+                        "▪▪▪▪▪",
+                    ]),
+            );
+            pb.set_message(format!(
+                "{:} - Copying Verification...",
+                &contract_address
+            ));
+            copy_etherscan_verification_for_contract(
+                contract_address.clone(),
+                source_api_key.clone(),
+                source_url.clone(),
+                target_api_key.clone(),
+                target_url.clone(),
+            )
+            .then(move |result| {
+                match result {
+                    Ok(VerificationResult::Success) => pb.finish_with_message(format!(
+                        "{:} - Success",
+                        contract_address
+                    )),
+                    Ok(VerificationResult::AlreadyVerified) => pb.finish_with_message(format!(
+                        "{:} - Already verified",
+                        contract_address
+                    )),
+                    Err(ref err) => pb.finish_with_message(format!(
+                        "{:} - Error: {:?}",
+                        contract_address, err
+                    )),
+                }
+                futures::future::ready(result)
+            })
+        })
+        .collect();
+    futures::future::join_all(tasks).await;
+    Ok(())
+}
+
+async fn copy_etherscan_verification_for_contract(
+    contract_address: String,
+    source_api_key: String,
+    source_url: String,
+    target_api_key: String,
+    target_url: String,
+) -> Result<VerificationResult> {
     let source_client = Client::builder()
         .with_api_key(source_api_key)
         .with_url(source_url.clone())?
@@ -25,25 +98,13 @@ pub async fn copy_etherscan_verification(
         .with_url(target_url.clone())?
         .with_api_url(target_url)?
         .build()?;
-    for contract_address in contract_addresses {
-        copy_etherscan_verification_for_contract(&contract_address, &source_client, &target_client)
-            .await?;
-    }
-    Ok(())
-}
-
-async fn copy_etherscan_verification_for_contract(
-    contract_address: &String,
-    source_client: &Client,
-    target_client: &Client,
-) -> Result<()> {
     let metadata = source_client
         .contract_source_code(contract_address.parse()?)
         .await?
         .items[0]
         .clone();
     let verification_request =
-        convert_metadata_to_verification_request(contract_address, &metadata)?;
+        convert_metadata_to_verification_request(&contract_address, &metadata)?;
     let id = send_verification_request(verification_request, &target_client).await?;
     await_contract_verification(id, &target_client).await
 }
@@ -114,34 +175,32 @@ async fn send_verification_request(
     Ok(verification_response.result)
 }
 
-async fn await_contract_verification(id: String, target_client: &Client) -> Result<()> {
+async fn await_contract_verification(
+    id: String,
+    target_client: &Client,
+) -> Result<VerificationResult> {
     let max_verification_status_retries = 10;
     let interval = std::time::Duration::from_secs(10);
     for _ in 0..max_verification_status_retries {
-        println!("Checking verification status with id: {}", id);
         let resp = target_client
             .check_contract_verification_status(id.clone())
             .await
             .wrap_err("Failed to request verification status")?;
-        eprintln!("Contract verification status:\nResponse: {:#?}", resp);
 
         if resp.result.contains("Unable to verify") {
             return Err(eyre!("Unable to verify.",));
         }
 
         if resp.result == "Already Verified" {
-            println!("Contract source code already verified");
-            return Ok(());
+            return Ok(VerificationResult::AlreadyVerified);
         }
 
         if resp.status == "0" {
-            println!("Contract failed to verify.");
-            std::process::exit(1);
+            return Err(eyre!("Contract failed to verify.",));
         }
 
         if resp.result == "Pass - Verified" {
-            println!("Contract successfully verified");
-            return Ok(());
+            return Ok(VerificationResult::Success);
         }
 
         // Wait for interval before checking again

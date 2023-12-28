@@ -26,5 +26,7 @@ async fn main() {
         args.source_url,
         args.target_api_key,
         args.target_url,
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
 }
