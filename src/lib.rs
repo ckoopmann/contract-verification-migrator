@@ -24,7 +24,7 @@ pub use verification::{copy_etherscan_verification_for_contract, VerificationRes
 mod progress_bar;
 use progress_bar::{initialize_multi_progress, initialize_progress_bar, update_progress_bar};
 
-/// Copy contract verification from one block-explorer to another
+/// Copy contract verification of multiple contracts from one block-explorer to another
 ///
 /// # Arguments
 /// - `contract_addresses` - Vector of contract addresses for which to copy the contract
