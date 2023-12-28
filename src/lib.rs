@@ -97,6 +97,9 @@ mod tests {
     }
 
     #[tokio::test]
+    // TODO: Re-enable test once the fix in foundry-block-explorers is pushed to crates.io
+    // See: https://github.com/foundry-rs/block-explorers/commit/472118dafcbeb9bfdcd8df1c11ef28a5c51884d9
+    #[ignore]
     async fn test_copy_verification_from_blockscout_to_etherscan() {
         let results = copy_etherscan_verification(
             contract_addresses(),
