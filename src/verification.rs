@@ -43,7 +43,8 @@ pub async fn copy_etherscan_verification_for_contract(
         .clone();
     let verification_request =
         convert_metadata_to_verification_request(&contract_address, &metadata)?;
-    let verification_response = send_verification_request(verification_request, &target_client).await?;
+    let verification_response =
+        send_verification_request(verification_request, &target_client).await?;
     match verification_response {
         VerificationRequestResponse::Submitted(id) => {
             await_contract_verification(id, &target_client).await
@@ -111,7 +112,11 @@ async fn send_verification_request(
         .submit_contract_verification(&verification_request)
         .await?;
     if verification_response.message != "OK" {
-        if verification_response.result.to_lowercase().contains("already verified")  {
+        if verification_response
+            .result
+            .to_lowercase()
+            .contains("already verified")
+        {
             return Ok(VerificationRequestResponse::AlreadyVerified);
         }
         return Err(eyre::eyre!(
@@ -119,7 +124,9 @@ async fn send_verification_request(
             verification_response.result
         ));
     }
-    Ok(VerificationRequestResponse::Submitted(verification_response.result))
+    Ok(VerificationRequestResponse::Submitted(
+        verification_response.result,
+    ))
 }
 
 async fn await_contract_verification(

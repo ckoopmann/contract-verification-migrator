@@ -6,7 +6,6 @@ pub use verification::{copy_etherscan_verification_for_contract, VerificationRes
 mod progress_bar;
 use progress_bar::{initialize_multi_progress, initialize_progress_bar, update_progress_bar};
 
-
 pub async fn copy_etherscan_verification(
     contract_addresses: Vec<String>,
     source_api_key: String,
@@ -33,7 +32,7 @@ pub async fn copy_etherscan_verification(
             })
         })
         .collect();
-    return futures::future::join_all(tasks).await;
+    futures::future::join_all(tasks).await
 }
 
 #[cfg(test)]
@@ -49,7 +48,8 @@ mod tests {
             blockscout_api_key(),
             blockscout_url(),
             false,
-        ).await;
+        )
+        .await;
         assert!(!results.into_iter().any(|result| result.is_err()));
     }
 
@@ -62,23 +62,21 @@ mod tests {
             etherscan_api_key(),
             etherscan_url(),
             false,
-        ).await;
+        )
+        .await;
         assert!(!results.into_iter().any(|result| result.is_err()));
     }
 
     // Complex contract verified in "standard-solidity-json" format (non-flattened)
-    const UNI_V3_ROUTER: &str ="0xE592427A0AEce92De3Edee1F18E0157C05861564";
+    const UNI_V3_ROUTER: &str = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
     // Complex contract verified in flattened format on etherscan
-    const ICETH_TOKEN: &str ="0x7C07F7aBe10CE8e33DC6C5aD68FE033085256A84";
+    const ICETH_TOKEN: &str = "0x7C07F7aBe10CE8e33DC6C5aD68FE033085256A84";
 
     fn contract_addresses() -> Vec<String> {
-        vec![
-            ICETH_TOKEN.to_string(),
-            UNI_V3_ROUTER.to_string(),
-        ]
+        vec![ICETH_TOKEN.to_string(), UNI_V3_ROUTER.to_string()]
     }
     fn etherscan_url() -> String {
-        "https://api.etherscan.io/api".to_string()  
+        "https://api.etherscan.io/api".to_string()
     }
     fn etherscan_api_key() -> String {
         std::env::var("ETHERSCAN_API_KEY").expect("ETHERSCAN_API_KEY not set")
@@ -91,5 +89,4 @@ mod tests {
     fn blockscout_api_key() -> String {
         std::env::var("BLOCKSCOUT_API_KEY").expect("BLOCKSCOUT_API_KEY not set")
     }
-
 }
