@@ -1,2 +1,4 @@
-# contract-verification-migrator
-Easily migrate contract verification from one block explorer to another
+# Contract Verification Migrator
+Rust library / binary to easily copy / migrate contract verifications across block explorers
+
+

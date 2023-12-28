@@ -9,8 +9,13 @@ use serde_json::json;
 use std::collections::HashMap;
 
 #[derive(Debug)]
+/// Enum containing different verification outcomes that result in the contract being subsequently
+/// verified on the target block-explorer
+/// Note that failure / errors are accounted for by wrapping this enum in a  standard Result
 pub enum VerificationResult {
+    /// Indicates successful verification of previously unverified contract
     Success,
+    /// Indicates that the given contract had been verified already
     AlreadyVerified,
 }
 
@@ -18,6 +23,29 @@ enum VerificationRequestResponse {
     Submitted(String),
     AlreadyVerified,
 }
+
+/// Copy contract verification of a single contract from one block-explorer to another
+///
+/// # Arguments
+/// - `contract_address` - The contract address for which to copy the source code verification
+/// verification
+/// - `source_api_key` - The api key for the source block-explorer's api
+/// - `source_url` - The url of the source block-explorer's api
+/// - `target_api_key` - The api key for the target block-explorer's api
+/// - `target_url` - The url of the target block-explorer's api
+///
+/// # Examples
+///
+/// ```rust
+///    let results = contract_verification_migrator::copy_etherscan_verification_for_contract(
+///        "0xE592427A0AEce92De3Edee1F18E0157C05861564".to_string(),
+///        "<YOUR_ETHERSCAN_API_KEY>".to_string(),
+///        "https://api.etherscan.io/api".to_string(),
+///        "<YOUR_BLOCKSCOUT_API_KEY>".to_string(),
+///        "https://eth.blockscout.com/api".to_string(),
+///     );
+///
+/// ```
 
 pub async fn copy_etherscan_verification_for_contract(
     contract_address: String,
@@ -88,11 +116,19 @@ fn convert_metadata_to_verification_request(
         // Note: This case is untested
         SourceCodeMetadata::Sources(_) => serde_json::to_string(&metadata.source_code)?,
     };
+    // if compiler version does not start with a "v" add it
+    let mut compiler_version = metadata.compiler_version.clone();
+
+    // Apparently sometimes Blockscout omits the leading v in the contract version
+    if !compiler_version.starts_with('v') {
+        compiler_version.insert(0, 'v');
+    };
+
     let verification_request = VerifyContract {
         address: contract_address.parse()?,
         code_format: CodeFormat::StandardJsonInput,
         contract_name: contract_name.clone(),
-        compiler_version: metadata.compiler_version.clone(),
+        compiler_version,
         runs: Some(metadata.runs.to_string()),
         optimization_used: Some(metadata.optimization_used.to_string()),
         constructor_arguments: Some(hex::encode(metadata.constructor_arguments.clone())),
