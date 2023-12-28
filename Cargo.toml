@@ -9,7 +9,7 @@ edition = "2021"
 clap = {version = "4.4.11", features = ["derive"]}
 console = "0.15.7"
 eyre = "0.6.11"
-foundry-block-explorers = { git = "https://github.com/foundry-rs/block-explorers.git" }
+foundry-block-explorers = { git = "https://github.com/ckoopmann/block-explorers.git", branch = "fix-blockscout-verification-error-on-zeroex-contract" }
 futures = "0.3.30"
 hex = "0.4.3"
 indicatif = "0.17.7"

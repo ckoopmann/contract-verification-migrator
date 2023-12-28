@@ -71,9 +71,12 @@ mod tests {
     const UNI_V3_ROUTER: &str = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
     // Complex contract verified in flattened format on etherscan
     const ICETH_TOKEN: &str = "0x7C07F7aBe10CE8e33DC6C5aD68FE033085256A84";
+    // Complex proxy contract - note that this should only attempt to migrate / copy the
+    // verification of the proxy logic itself (not the implementations)
+    const ZEROEX_PROXY: &str = "0xDef1C0ded9bec7F1a1670819833240f027b25EfF";
 
     fn contract_addresses() -> Vec<String> {
-        vec![ICETH_TOKEN.to_string(), UNI_V3_ROUTER.to_string()]
+        vec![ICETH_TOKEN.to_string(), UNI_V3_ROUTER.to_string(), ZEROEX_PROXY.to_string()]
     }
     fn etherscan_url() -> String {
         "https://api.etherscan.io/api".to_string()
