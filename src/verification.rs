@@ -14,6 +14,11 @@ pub enum VerificationResult {
     AlreadyVerified,
 }
 
+enum VerificationRequestResponse {
+    Submitted(String),
+    AlreadyVerified,
+}
+
 pub async fn copy_etherscan_verification_for_contract(
     contract_address: String,
     source_api_key: String,
@@ -38,21 +43,27 @@ pub async fn copy_etherscan_verification_for_contract(
         .clone();
     let verification_request =
         convert_metadata_to_verification_request(&contract_address, &metadata)?;
-    let id = send_verification_request(verification_request, &target_client).await?;
-    await_contract_verification(id, &target_client).await
+    let verification_response = send_verification_request(verification_request, &target_client).await?;
+    match verification_response {
+        VerificationRequestResponse::Submitted(id) => {
+            await_contract_verification(id, &target_client).await
+        }
+        VerificationRequestResponse::AlreadyVerified => Ok(VerificationResult::AlreadyVerified),
+    }
 }
 
 fn convert_metadata_to_verification_request(
     contract_address: &str,
     metadata: &Metadata,
 ) -> Result<VerifyContract> {
+    let contract_name = format!("{}.sol:{}", metadata.contract_name, metadata.contract_name);
     let source = match metadata.source_code {
         // Blockscout does not accept "single-file" source code for verificatin so we convert it
         // into "solidity-standard-json-input" format
         SourceCodeMetadata::SourceCode(..) => {
             let mut source_code_entries: HashMap<String, SourceCodeEntry> = HashMap::new();
             source_code_entries.insert(
-                metadata.contract_name.clone(),
+                contract_name.clone(),
                 SourceCodeEntry {
                     content: metadata.source_code(),
                 },
@@ -79,7 +90,7 @@ fn convert_metadata_to_verification_request(
     let verification_request = VerifyContract {
         address: contract_address.parse()?,
         code_format: CodeFormat::StandardJsonInput,
-        contract_name: metadata.contract_name.clone(),
+        contract_name: contract_name.clone(),
         compiler_version: metadata.compiler_version.clone(),
         runs: Some(metadata.runs.to_string()),
         optimization_used: Some(metadata.optimization_used.to_string()),
@@ -95,17 +106,20 @@ fn convert_metadata_to_verification_request(
 async fn send_verification_request(
     verification_request: VerifyContract,
     target_client: &Client,
-) -> Result<String> {
+) -> Result<VerificationRequestResponse> {
     let verification_response = target_client
         .submit_contract_verification(&verification_request)
         .await?;
     if verification_response.message != "OK" {
+        if verification_response.result.to_lowercase().contains("already verified")  {
+            return Ok(VerificationRequestResponse::AlreadyVerified);
+        }
         return Err(eyre::eyre!(
             "Verification returned non-ok response: {}",
-            verification_response.message
+            verification_response.result
         ));
     }
-    Ok(verification_response.result)
+    Ok(VerificationRequestResponse::Submitted(verification_response.result))
 }
 
 async fn await_contract_verification(
@@ -126,10 +140,6 @@ async fn await_contract_verification(
 
         if resp.result == "Already Verified" {
             return Ok(VerificationResult::AlreadyVerified);
-        }
-
-        if resp.status == "0" {
-            return Err(eyre!("Contract failed to verify.",));
         }
 
         if resp.result == "Pass - Verified" {
